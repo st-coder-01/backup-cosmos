@@ -22,7 +22,7 @@ install_mongodb_tools() {
 upload_to_azure() {
     local STORAGE_ACCOUNT=$1
     local CONTAINER_NAME=$2
-    local FILE_PATH=$3
+    local BACKUP_DIR=$3
 
     echo "Uploading backup to Azure Storage Account..."
     az storage blob upload-batch --destination "$CONTAINER_NAME" --source "$BACKUP_DIR" --account-name "$STORAGE_ACCOUNT"
@@ -30,7 +30,7 @@ upload_to_azure() {
     if [ $? -eq 0 ]; then
         echo "Backup uploaded successfully."
         echo "Deleting local backup..."
-        rm -rf "$(dirname $FILE_PATH)"
+        rm -rf "$BACKUP_DIR"
         echo "Local backup deleted."
     else
         echo "Failed to upload backup to Azure Storage Account."
