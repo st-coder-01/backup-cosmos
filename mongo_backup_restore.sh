@@ -103,30 +103,35 @@ main() {
     # Ensure MongoDB tools are installed
     install_mongodb_tools
 
-    echo "Choose an option:"
-    echo "1. Perform mongodump"
-    echo "2. Perform mongorestore"
-    read -p "Enter your choice (1/2): " choice
+    if [ "$#" -lt 4 ]; then
+        echo "Usage for mongodump: $0 mongodump <MongoDB_URI> <Storage_Account_Name> <Container_Name>"
+        echo "Usage for mongorestore: $0 mongorestore <MongoDB_URI> <Database_Name> <Storage_Account_Name> <Container_Name>"
+        exit 1
+    fi
 
-    case $choice in
-        1)
-            read -p "Enter MongoDB URI: " mongo_uri
-            read -p "Enter Azure Storage Account name: " storage_account
-            read -p "Enter Azure Storage Container name: " container_name
-            perform_mongodump "$mongo_uri" "$storage_account" "$container_name"
+    local action=$1
+
+    case $action in
+        mongodump)
+            if [ "$#" -ne 4 ]; then
+                echo "Usage for mongodump: $0 mongodump <MongoDB_URI> <Storage_Account_Name> <Container_Name>"
+                exit 1
+            fi
+            perform_mongodump "$2" "$3" "$4"
             ;;
-        2)
-            read -p "Enter MongoDB URI: " mongo_uri
-            read -p "Enter Azure Storage Account name: " storage_account
-            read -p "Enter Azure Storage Container name: " container_name
-            perform_mongorestore "$mongo_uri" "$storage_account" "$container_name"
+        mongorestore)
+            if [ "$#" -ne 4 ]; then
+                echo "Usage for mongorestore: $0 mongorestore <MongoDB_URI> <Storage_Account_Name> <Container_Name>"
+                exit 1
+            fi
+            perform_mongorestore "$2" "$3" "$4"
             ;;
         *)
-            echo "Invalid choice. Please run the script again."
+            echo "Invalid action specified. Use 'mongodump' or 'mongorestore'."
             exit 1
             ;;
     esac
 }
 
 # Run the main function
-main
+main "$@"
