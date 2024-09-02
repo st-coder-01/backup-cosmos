@@ -52,23 +52,26 @@ download_from_azure() {
 # Function to delete containers older than 7 days
 delete_old_containers() {
     local storage_account=$1
-    local container_name_prefix=$2
 
     echo "Checking for containers older than 7 days in storage account: $storage_account"
-    containers=$(az storage container list --account-name "$storage_account" --query "[].name" -o tsv | grep "$container_name_prefix")
-    
-    # Use UTC for the 7 days ago comparison
-    seven_days_ago=$(date -u -d "7 days ago" +"%Y-%m-%d-%H-%M-%S")
 
-    for container in $containers; do
-        container_date=$(echo $container | grep -oP "${container_name_prefix}-\K\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}")
-        if [[ "$container_date" < "$seven_days_ago" ]]; then
-            az storage container delete --name "$container" --account-name "$storage_account"
-            echo "Deleted old container: $container"
+    # Get the current date and time in UTC, 7 days ago
+    seven_days_ago=$(date -u -d "7 days ago" +"%Y-%m-%dT%H:%MZ")
+
+    # List all containers with their last modified date
+    containers=$(az storage container list --account-name "$storage_account" --query "[].{name:name, lastModified:properties.lastModified}" -o tsv)
+    
+    while IFS=$'\t' read -r container_name last_modified; do
+        # Convert the last modified date to UTC and compare with the 7 days ago threshold
+        if [[ "$last_modified" < "$seven_days_ago" ]]; then
+            az storage container delete --name "$container_name" --account-name "$storage_account"
+            echo "Deleted old container: $container_name"
         fi
-    done
+    done <<< "$containers"
+
     echo "Old container cleanup completed."
 }
+
 
 # Function to perform mongodump and upload to Azure Storage
 perform_mongodump() {
