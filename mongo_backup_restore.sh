@@ -74,8 +74,8 @@ perform_mongodump() {
     local storage_account=$2
     local container_name_prefix=$3
 
-    # Create a timestamped container name
-    local timestamp=$(date +"%Y%m%d%H%M%S")
+    # Create a timestamped container name with the format YYYY/MM/DD-HH:MM:SS
+    local timestamp=$(date +"%Y/%m/%d-%H:%M:%S")
     local container_name="${container_name_prefix}-${timestamp}"
     
     echo "Starting mongodump..."
