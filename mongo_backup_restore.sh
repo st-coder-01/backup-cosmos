@@ -4,10 +4,10 @@
 install_mongodb_tools() {
     if ! command -v mongodump &> /dev/null || ! command -v mongorestore &> /dev/null; then
         echo "MongoDB tools not found. Installing..."
-        wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian10-x86_64-latest.tgz
-        tar -zxvf mongodb-database-tools-debian10-x86_64-latest.tgz
-        mv mongodb-database-tools-debian10-x86_64-latest/bin/* /home/azureuser/bin/
-        rm -rf mongodb-database-tools-debian10-x86_64-latest*
+        wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian10-x86_64-100.5.1.tgz
+        tar -zxvf mongodb-database-tools-debian10-x86_64-100.5.1.tgz
+        mv mongodb-database-tools-debian10-x86_64-100.5.1/bin/* /home/azureuser/bin/
+        rm -rf mongodb-database-tools-debian10-x86_64-100.5.1.tgz mongodb-database-tools-debian10-x86_64-100.5.1/
         echo "MongoDB tools installed successfully."
     else
         echo "MongoDB tools already installed."
