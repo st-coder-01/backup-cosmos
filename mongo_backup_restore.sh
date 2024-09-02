@@ -6,7 +6,7 @@ install_mongodb_tools() {
         echo "MongoDB tools not found. Installing..."
         wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian10-x86_64-latest.tgz
         tar -zxvf mongodb-database-tools-debian10-x86_64-latest.tgz
-        sudo mv mongodb-database-tools-debian10-x86_64-latest/* /home/azureuser/bin/
+        mv mongodb-database-tools-debian10-x86_64-latest/bin/* /home/azureuser/bin/
         rm -rf mongodb-database-tools-debian10-x86_64-latest*
         echo "MongoDB tools installed successfully."
     else
