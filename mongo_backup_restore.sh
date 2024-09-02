@@ -56,10 +56,10 @@ delete_old_containers() {
 
     echo "Checking for containers older than 7 days in storage account: $storage_account"
     containers=$(az storage container list --account-name "$storage_account" --query "[].name" -o tsv | grep "$container_name_prefix")
-    seven_days_ago=$(date -d "7 days ago" +"%Y%m%d%H%M%S")
+    seven_days_ago=$(date -d "7 days ago" +"%Y-%m-%d-%H-%M-%S")
 
     for container in $containers; do
-        container_date=$(echo $container | grep -oP "${container_name_prefix}-\K\d+")
+        container_date=$(echo $container | grep -oP "${container_name_prefix}-\K\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}")
         if [[ $container_date < $seven_days_ago ]]; then
             az storage container delete --name "$container" --account-name "$storage_account"
             echo "Deleted old container: $container"
@@ -74,8 +74,8 @@ perform_mongodump() {
     local storage_account=$2
     local container_name_prefix=$3
 
-    # Create a timestamped container name with the format YYYY/MM/DD-HH:MM:SS
-    local timestamp=$(date +"%Y/%m/%d-%H:%M:%S")
+    # Create a timestamped container name
+    local timestamp=$(date +"%Y-%m-%d-%H-%M-%S")
     local container_name="${container_name_prefix}-${timestamp}"
     
     echo "Starting mongodump..."
