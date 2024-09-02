@@ -107,7 +107,7 @@ perform_mongorestore() {
     download_from_azure "$storage_account" "$container_name" "/tmp/mongorestore"
 
     echo "Starting mongorestore..."
-    mongorestore --uri="$mongo_uri" --drop "/tmp/mongorestore"
+    mongorestore --uri="$mongo_uri" "/tmp/mongorestore" --writeConcern {w:0}
     if [ $? -eq 0 ]; then
         echo "Data restored successfully."
     else
