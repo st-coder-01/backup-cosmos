@@ -1,111 +1,132 @@
 #!/bin/bash
 
-# Default paths
-DEFAULT_OUTPUT_DIR="/home/azureuser/mongodb_backups"
-DEFAULT_RESTORE_DIR="/home/azureuser/mongodb_restore"
-
-# Function to download and install MongoDB tools if not already installed
+# Function to install MongoDB tools if not installed
 install_mongodb_tools() {
-    if ! command -v mongodump &>/dev/null || ! command -v mongorestore &>/dev/null; then
-        echo "MongoDB tools not found. Downloading and installing MongoDB tools..."
-        wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian10-x86_64-100.5.1.tgz -O mongodb-tools.tgz
-        tar -xvzf mongodb-tools.tgz
-        sudo mv mongodb-database-tools-debian10-x86_64-100.5.1/bin/* /usr/local/bin/
-        rm -rf mongodb-tools.tgz mongodb-database-tools-debian10-x86_64-100.5.1
+    if ! command -v mongodump &> /dev/null || ! command -v mongorestore &> /dev/null; then
+        echo "MongoDB tools not found. Installing..."
+        wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian10-x86_64-latest.tgz
+        tar -zxvf mongodb-database-tools-debian10-x86_64-latest.tgz
+        sudo mv mongodb-database-tools-debian10-x86_64-latest/* /usr/local/bin/
+        rm -rf mongodb-database-tools-debian10-x86_64-latest*
         echo "MongoDB tools installed successfully."
     else
-        echo "MongoDB tools are already installed."
+        echo "MongoDB tools already installed."
     fi
 }
 
-# Function to upload backup to Azure Storage Account
+# Function to upload backup to Azure Storage
 upload_to_azure() {
-    local STORAGE_ACCOUNT=$1
-    local CONTAINER_NAME=$2
-    local BACKUP_DIR=$3
+    local storage_account=$1
+    local container_name=$2
+    local source_directory=$3
 
-    echo "Uploading backup to Azure Storage Account..."
-    az storage blob upload-batch --destination "$CONTAINER_NAME" --source "$BACKUP_DIR" --account-name "$STORAGE_ACCOUNT"
-    
+    echo "Uploading backup to Azure Storage account: $storage_account, container: $container_name"
+    az storage container create --name "$container_name" --account-name "$storage_account"
+    az storage blob upload-batch --destination "$container_name" --source "$source_directory" --account-name "$storage_account"
     if [ $? -eq 0 ]; then
         echo "Backup uploaded successfully."
-        echo "Deleting local backup..."
-        rm -rf "$BACKUP_DIR"
-        echo "Local backup deleted."
     else
         echo "Failed to upload backup to Azure Storage Account."
         exit 1
     fi
 }
 
-# Function to download backup from Azure Storage Account
+# Function to download backup from Azure Storage
 download_from_azure() {
-    local STORAGE_ACCOUNT=$1
-    local CONTAINER_NAME=$2
-    local DEST_DIR=$3
+    local storage_account=$1
+    local container_name=$2
+    local destination_directory=$3
 
-    # Ensure destination directory exists
-    mkdir -p "$DEST_DIR"
-
-    echo "Downloading backup from Azure Storage Account..."
-    az storage blob download-batch --destination "$DEST_DIR" --source "$CONTAINER_NAME" --account-name "$STORAGE_ACCOUNT"
+    echo "Downloading backup from Azure Storage account: $storage_account, container: $container_name"
+    mkdir -p "$destination_directory"
+    az storage blob download-batch --destination "$destination_directory" --source "$container_name" --account-name "$storage_account"
 
     if [ $? -eq 0 ]; then
-        echo "Backup downloaded successfully."
+        echo "Backup downloaded successfully to $destination_directory."
     else
         echo "Failed to download backup from Azure Storage Account."
         exit 1
     fi
 }
 
-# Function to perform mongodump
+# Function to delete containers older than 7 days
+delete_old_containers() {
+    local storage_account=$1
+    local container_name_prefix=$2
+
+    echo "Checking for containers older than 7 days in storage account: $storage_account"
+    containers=$(az storage container list --account-name "$storage_account" --query "[].name" -o tsv | grep "$container_name_prefix")
+    seven_days_ago=$(date -d "7 days ago" +"%Y%m%d%H%M%S")
+
+    for container in $containers; do
+        container_date=$(echo $container | grep -oP "${container_name_prefix}-\K\d+")
+        if [[ $container_date < $seven_days_ago ]]; then
+            az storage container delete --name "$container" --account-name "$storage_account"
+            echo "Deleted old container: $container"
+        fi
+    done
+    echo "Old container cleanup completed."
+}
+
+# Function to perform mongodump and upload to Azure Storage
 perform_mongodump() {
-    local MONGO_URI=$1
-    local STORAGE_ACCOUNT=$2
-    local CONTAINER_NAME=$3
+    local mongo_uri=$1
+    local storage_account=$2
+    local container_name_prefix=$3
 
-    # Ensure output directory exists
-    mkdir -p "$DEFAULT_OUTPUT_DIR"
-
-    echo "Running mongodump..."
-    mongodump --uri="$MONGO_URI" --out="$DEFAULT_OUTPUT_DIR"
+    # Create a timestamped container name
+    local timestamp=$(date +"%Y%m%d%H%M%S")
+    local container_name="${container_name_prefix}-${timestamp}"
+    
+    echo "Starting mongodump..."
+    mongodump --uri="$mongo_uri" --out="/tmp/mongodump"
 
     if [ $? -eq 0 ]; then
-        echo "Backup created successfully at $DEFAULT_OUTPUT_DIR."
-        upload_to_azure "$STORAGE_ACCOUNT" "$CONTAINER_NAME" "$DEFAULT_OUTPUT_DIR"
+        echo "Backup created successfully at /tmp/mongodump."
+        upload_to_azure "$storage_account" "$container_name" "/tmp/mongodump"
     else
         echo "mongodump failed."
         exit 1
     fi
+
+    # Clean up local backup
+    rm -rf /tmp/mongodump
+    echo "Local backup directory /tmp/mongodump deleted."
+
+    # Remove containers older than 7 days
+    delete_old_containers "$storage_account" "$container_name_prefix"
 }
 
-# Function to perform mongorestore
+# Function to perform mongorestore from Azure Storage
 perform_mongorestore() {
-    local MONGO_URI=$1
-    local STORAGE_ACCOUNT=$2
-    local CONTAINER_NAME=$3
+    local mongo_uri=$1
+    local storage_account=$2
+    local container_name=$3
 
-    download_from_azure "$STORAGE_ACCOUNT" "$CONTAINER_NAME" "$DEFAULT_RESTORE_DIR"
+    # Download backup from Azure Storage
+    download_from_azure "$storage_account" "$container_name" "/tmp/mongorestore"
 
-    echo "Running mongorestore..."
-    mongorestore --uri="$MONGO_URI" "$DEFAULT_RESTORE_DIR" --writeConcern '{w:0}'
-
+    echo "Starting mongorestore..."
+    mongorestore --uri="$mongo_uri" --drop "/tmp/mongorestore"
     if [ $? -eq 0 ]; then
-        echo "Data restored successfully from $DEFAULT_RESTORE_DIR."
+        echo "Data restored successfully."
     else
         echo "mongorestore failed."
         exit 1
     fi
+
+    # Clean up local restore directory
+    rm -rf /tmp/mongorestore
+    echo "Local restore directory /tmp/mongorestore deleted."
 }
 
 # Main function
 main() {
-    # Ensure MongoDB tools are installed
     install_mongodb_tools
 
     if [ "$#" -lt 4 ]; then
-        echo "Usage for mongodump: $0 mongodump <MongoDB_URI> <Storage_Account_Name> <Container_Name>"
-        echo "Usage for mongorestore: $0 mongorestore <MongoDB_URI> <Database_Name> <Storage_Account_Name> <Container_Name>"
+        echo "Usage for mongodump: $0 mongodump <MongoDB_URI> <Storage_Account_Name> <Container_Name_Prefix>"
+        echo "Usage for mongorestore: $0 mongorestore <MongoDB_URI> <Storage_Account_Name> <Timestamped_Container_Name>"
         exit 1
     fi
 
@@ -114,14 +135,14 @@ main() {
     case $action in
         mongodump)
             if [ "$#" -ne 4 ]; then
-                echo "Usage for mongodump: $0 mongodump <MongoDB_URI> <Storage_Account_Name> <Container_Name>"
+                echo "Usage for mongodump: $0 mongodump <MongoDB_URI> <Storage_Account_Name> <Container_Name_Prefix>"
                 exit 1
             fi
             perform_mongodump "$2" "$3" "$4"
             ;;
         mongorestore)
             if [ "$#" -ne 4 ]; then
-                echo "Usage for mongorestore: $0 mongorestore <MongoDB_URI> <Storage_Account_Name> <Container_Name>"
+                echo "Usage for mongorestore: $0 mongorestore <MongoDB_URI> <Storage_Account_Name> <Timestamped_Container_Name>"
                 exit 1
             fi
             perform_mongorestore "$2" "$3" "$4"
@@ -133,5 +154,4 @@ main() {
     esac
 }
 
-# Run the main function
 main "$@"
