@@ -87,6 +87,9 @@ perform_mongodump() {
     # Create a timestamped container name
     local timestamp=$(date -u +"%Y-%m-%d-%H-%M-%S")
     local container_name="${container_name_prefix}-${timestamp}"
+
+    # Ensure cleanup is done on exit
+    trap "rm -rf /tmp/mongodump; echo 'Local backup directory /tmp/mongodump deleted.'" EXIT
     
     echo "Starting mongodump..."
     mongodump --uri="$mongo_uri" --out="/tmp/mongodump"
@@ -99,10 +102,6 @@ perform_mongodump() {
         exit 1
     fi
 
-    # Clean up local backup
-    rm -rf /tmp/mongodump
-    echo "Local backup directory /tmp/mongodump deleted."
-
     # Remove containers older than 7 days
     delete_old_containers "$storage_account" "$container_name_prefix"
 }
@@ -112,6 +111,9 @@ perform_mongorestore() {
     local mongo_uri=$1
     local storage_account=$2
     local container_name=$3
+
+    # Ensure cleanup is done on exit
+    trap "rm -rf /tmp/mongorestore; echo 'Local backup directory /tmp/mongorestore deleted.'" EXIT
 
     # Download backup from Azure Storage
     download_from_azure "$storage_account" "$container_name" "/tmp/mongorestore"
@@ -124,10 +126,6 @@ perform_mongorestore() {
         echo "mongorestore failed."
         exit 1
     fi
-
-    # Clean up local restore directory
-    rm -rf /tmp/mongorestore
-    echo "Local restore directory /tmp/mongorestore deleted."
 }
 
 # Main function
