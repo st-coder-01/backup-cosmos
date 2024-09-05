@@ -31,10 +31,10 @@ upload_to_azure() {
     az storage container create --name "mongodbbackup" --account-name "$storage_account"
 
     # Ensure the server name folder exists inside the container
-    az storage blob directory exists --account-name "$storage_account" --container-name "mongodbbackup" --name "$server_name" &> /dev/null
-    if [ $? -ne 0 ]; then
+    folder_exists=$(az storage blob list --container-name "mongodbbackup" --prefix "$server_name/" --account-name "$storage_account" --query "length(@)" -o tsv)
+    if [ "$folder_exists" -eq 0 ]; then
         echo "Creating server folder '$server_name' inside 'mongodbbackup' container."
-        az storage blob directory create --account-name "$storage_account" --container-name "mongodbbackup" --name "$server_name"
+        az storage blob upload --container-name "mongodbbackup" --file /dev/null --name "$server_name/"
     fi
 
     # Upload the backup to the server folder inside the 'mongodbbackup' container
@@ -55,8 +55,11 @@ delete_old_backups() {
 
     echo "Checking for backups older than 7 days in server folder: $server_name"
 
+    # Get the current date and time in UTC, 7 days ago
+    seven_days_ago=$(date -u -d "7 days ago" +"%Y-%m-%dT%H:%M:%S.0000000Z")
+
     # List all blobs in the server folder and filter by last modified date
-    blobs=$(az storage blob list --container-name "mongodbbackup" --prefix "$server_name" --account-name "$storage_account" --query "[?properties.lastModified<'$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%S.0000000Z)'].name" -o tsv)
+    blobs=$(az storage blob list --container-name "mongodbbackup" --prefix "$server_name/" --account-name "$storage_account" --query "[?properties.lastModified<'$seven_days_ago'].name" -o tsv)
 
     # Delete each blob older than 7 days
     for blob in $blobs; do
@@ -65,6 +68,24 @@ delete_old_backups() {
     done
 
     echo "Old backup cleanup completed."
+}
+
+# Function to download backup from Azure Storage
+download_from_azure() {
+    local storage_account=$1
+    local server_name=$2
+    local destination_directory=$3
+
+    echo "Downloading backup from Azure Storage account: $storage_account, server: $server_name"
+    mkdir -p "$destination_directory"
+    az storage blob download-batch --destination "$destination_directory" --source "mongodbbackup/$server_name" --account-name "$storage_account"
+
+    if [ $? -eq 0 ]; then
+        echo "Backup downloaded successfully to $destination_directory."
+    else
+        echo "Failed to download backup from Azure Storage Account."
+        exit 1
+    fi
 }
 
 # Function to perform mongodump and upload to Azure Storage
