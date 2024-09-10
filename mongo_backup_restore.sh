@@ -44,13 +44,6 @@ create_container_and_folders() {
     # Create the container if it doesn't exist
     echo "Checking if container '$container_name' exists..."
     az storage container create --name "$container_name" --account-name "$storage_account"
-
-    # Create the server folder if not present
-    folder_exists=$(az storage blob list --account-name "$storage_account" --container-name "$container_name" --prefix "$server_name/" --query "[?name=='$server_name/'] | length(@)")
-    if [ "$folder_exists" -eq 0 ]; then
-        echo "Creating folder for server: $server_name"
-        az storage blob upload --container-name "$container_name" --name "$server_name/" --account-name "$storage_account" --file /dev/null
-    fi
 }
 
 # Function to delete backups older than 7 days
