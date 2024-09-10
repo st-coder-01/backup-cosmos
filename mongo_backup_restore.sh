@@ -83,11 +83,12 @@ delete_old_backups() {
 download_from_azure() {
     local storage_account=$1
     local container_path=$2
-    local destination_directory=$3
+    local backup_folder=$3
+    local destination_directory=$4
 
     echo "Downloading backup from Azure Storage account: $storage_account, container path: $container_path"
     mkdir -p "$destination_directory"
-    az storage blob download-batch --destination "$destination_directory" --source "$container_path" --account-name "$storage_account"
+    az storage blob download-batch --destination "$destination_directory" --source "$container_path" --pattern "$backup_folder/*" --account-name "$storage_account"
 
     if [ $? -eq 0 ]; then
         echo "Backup downloaded successfully to $destination_directory."
@@ -141,7 +142,7 @@ perform_mongorestore() {
 
     # Download backup from Azure Storage
     echo "Downloading backup from Azure Storage..."
-    download_from_azure "$storage_account" "$container_name/$backup_folder" "/tmp/mongorestore"
+    download_from_azure "$storage_account" "$container_name" "$backup_folder" "/tmp/mongorestore"
 
     echo "Starting mongorestore..."
     mongorestore --uri="$mongo_uri" "/tmp/mongorestore" --writeConcern {w:0}
