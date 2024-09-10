@@ -36,7 +36,7 @@ upload_to_azure() {
 }
 
 # Function to create a container and folders if not present
-create_container_and_folders() {
+create_container() {
     local storage_account=$1
     local container_name=$2
     local server_name=$3
@@ -110,7 +110,7 @@ perform_mongodump() {
 
     if [ $? -eq 0 ]; then
         echo "Backup created successfully at /tmp/mongodump."
-        create_container_and_folders "$storage_account" "$container_name" "$server_name"
+        create_container "$storage_account" "$container_name" "$server_name"
         upload_to_azure "$storage_account" "$container_name/$backup_folder" "/tmp/mongodump"
         delete_old_backups "$storage_account" "$container_name" "$server_name"
     else
