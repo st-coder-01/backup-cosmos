@@ -96,6 +96,15 @@ perform_mongodump() {
     local storage_account=$2
     local server_name=$3
 
+     # Ensure retrywrites=false is set in the MongoDB URI
+    if [[ "$mongo_uri" != *"retrywrites=false"* ]]; then
+        if [[ "$mongo_uri" == *"?"* ]]; then
+            mongo_uri="${mongo_uri}&retrywrites=false"
+        else
+            mongo_uri="${mongo_uri}?retrywrites=false"
+        fi
+    fi
+
     # Create a timestamped folder name
     local timestamp=$(date -u +"%Y-%m-%d-%H-%M-%S")
     local container_name="mongodbbackup"
