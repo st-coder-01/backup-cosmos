@@ -46,23 +46,23 @@ create_container() {
     az storage container create --name "$container_name" --account-name "$storage_account"
 }
 
-# Function to delete backups older than 7 hours
+# Function to delete backups older than 7 days
 delete_old_backups() {
     local storage_account=$1
     local container_name=$2
     local server_name=$3
 
-    echo "Checking for backups older than 7 hours inside server: $server_name"
+    echo "Checking for backups older than 7 days inside server: $server_name"
 
-    # Get the current date and time in UTC, 7 hours ago
-    seven_hours_ago=$(date -u -d "7 hours ago" +"%Y-%m-%dT%H:%M:%SZ")
+    # Get the current date and time in UTC, 7 days ago
+    seven_days_ago=$(date -u -d "7 days ago" +"%Y-%m-%dT%H:%MZ")
 
     # List blobs inside the server folder
     blobs=$(az storage blob list --container-name "$container_name" --account-name "$storage_account" --prefix "$server_name/" --query "[].{name:name, lastModified:properties.lastModified}" -o tsv)
-
+    
     while IFS=$'\t' read -r blob_name last_modified; do
-        # Convert the last modified date to UTC and compare with the 7-hour threshold
-        if [[ "$last_modified" < "$seven_hours_ago" && "$blob_name" != "$server_name/" ]]; then
+        # Convert the last modified date to UTC and compare with the 7 days ago threshold
+        if [[ "$last_modified" < "$seven_days_ago" && "$blob_name" != "$server_name/" ]]; then
             az storage blob delete --container-name "$container_name" --name "$blob_name" --account-name "$storage_account"
             echo "Deleted old backup: $blob_name"
         fi
