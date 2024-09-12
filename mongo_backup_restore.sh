@@ -138,7 +138,7 @@ perform_mongorestore() {
 
     # Step 1: Drop collections without using writeConcern {w:0}
     echo "Dropping collections before restore..."
-    mongorestore --drop --uri="$mongo_uri" "/tmp/mongorestore/$backup_folder" --dryRun
+    mongorestore --drop --uri="$mongo_uri" "/tmp/mongorestore/$backup_folder"
     if [ $? -ne 0 ]; then
         echo "Collection drop failed."
         exit 1
