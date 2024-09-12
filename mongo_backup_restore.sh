@@ -132,21 +132,28 @@ perform_mongorestore() {
     local container_name="mongodbbackup"
     local backup_folder="${server_name}/${server_name}_${timestamp}"
 
+    # Extract the database name from the MongoDB URI (for dropping the database)
+    db_name=$(echo "$mongo_uri" | sed 's|.*\/||' | sed 's|\?.*||')
+
     # Download backup from Azure Storage
     echo "Downloading backup from Azure Storage..."
     download_from_azure "$storage_account" "$container_name" "$backup_folder" "/tmp/mongorestore"
 
-    # Step 1: Drop collections without using writeConcern {w:0}
-    echo "Dropping collections before restore..."
-    mongorestore --drop --uri="$mongo_uri" "/tmp/mongorestore/$backup_folder" --dryRun
-    if [ $? -ne 0 ]; then
-        echo "Collection drop failed."
+    # Drop the entire database before restoring
+    echo "Dropping the database '$db_name' before restore..."
+    mongo "$mongo_uri" --eval "db.getSiblingDB('$db_name').dropDatabase()"
+
+    if [ $? -eq 0 ]; then
+        echo "Database '$db_name' dropped successfully."
+    else
+        echo "Failed to drop the database."
         exit 1
     fi
 
-    # Step 2: Perform the actual restore using writeConcern {w:0}
-    echo "Starting actual mongorestore..."
-    mongorestore --uri="$mongo_uri" --writeConcern '{w:0}' "/tmp/mongorestore/$backup_folder"
+    # Start the restore process
+    echo "Starting mongorestore..."
+    mongorestore --uri="$mongo_uri" --writeConcern='{w:1}' "/tmp/mongorestore/$backup_folder"
+
     if [ $? -eq 0 ]; then
         echo "Data restored successfully."
     else
@@ -154,6 +161,7 @@ perform_mongorestore() {
         exit 1
     fi
 }
+
 
 # Main function
 main() {
