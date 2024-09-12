@@ -128,6 +128,15 @@ perform_mongorestore() {
     # Ensure cleanup is done on exit
     trap "rm -rf /tmp/mongorestore; echo 'Local restore directory /tmp/mongorestore deleted.'" EXIT
 
+    # Ensure retrywrites=false is set in the MongoDB URI
+    if [[ "$mongo_uri" != *"retrywrites=false"* ]]; then
+        if [[ "$mongo_uri" == *"?"* ]]; then
+            mongo_uri="${mongo_uri}&retrywrites=false"
+        else
+            mongo_uri="${mongo_uri}?retrywrites=false"
+        fi
+    fi
+
     # Create the path based on server name and timestamp
     local container_name="mongodbbackup"
     local backup_folder="${server_name}/${server_name}_${timestamp}"
