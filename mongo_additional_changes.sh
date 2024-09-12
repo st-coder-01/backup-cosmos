@@ -136,8 +136,18 @@ perform_mongorestore() {
     echo "Downloading backup from Azure Storage..."
     download_from_azure "$storage_account" "$container_name" "$backup_folder" "/tmp/mongorestore"
 
-    echo "Starting mongorestore..."
-    mongorestore --uri="$mongo_uri" "/tmp/mongorestore/$backup_folder" --writeConcern {w:0}
+    # Step 1: Drop collections without using writeConcern {w:0}
+    echo "Dropping collections before restore..."
+    mongorestore --drop --uri="$mongo_uri" "/tmp/mongorestore/$backup_folder"
+    if [ $? -ne 0 ]; then
+        echo "Collection drop failed."
+        exit 1
+    fi
+
+    # Step 2: Perform the actual restore using writeConcern {w:0}
+    echo "Starting actual mongorestore..."
+    mongorestore --uri="$mongo_uri" --writeConcern '{w:0}' "/tmp/mongorestore/$backup_folder"
+
     if [ $? -eq 0 ]; then
         echo "Data restored successfully."
     else
