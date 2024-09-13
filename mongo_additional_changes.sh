@@ -118,6 +118,27 @@ perform_mongodump() {
     fi
 }
 
+# Function to drop all collections in a MongoDB instance
+drop_all_collections() {
+    local mongo_uri=$1
+
+    echo "Dropping all collections in the database..."
+
+    # Use the mongo shell to drop all collections in the database
+    mongo "$mongo_uri" --eval '
+    var dbs = db.adminCommand("listDatabases").databases;
+    dbs.forEach(function(database) {
+        if (database.name !== "admin" && database.name !== "local" && database.name !== "config") {
+            var currentDB = db.getSiblingDB(database.name);
+            currentDB.getCollectionNames().forEach(function(collection) {
+                currentDB[collection].drop();
+                print("Dropped collection: " + collection + " in database: " + database.name);
+            });
+        }
+    });
+    '
+}
+
 # Function to perform mongorestore from Azure Storage
 perform_mongorestore() {
     local mongo_uri=$1
@@ -136,15 +157,11 @@ perform_mongorestore() {
     echo "Downloading backup from Azure Storage..."
     download_from_azure "$storage_account" "$container_name" "$backup_folder" "/tmp/mongorestore"
 
-    # Step 1: Drop collections without using writeConcern {w:0}
-    echo "Dropping collections before restore..."
-    mongorestore --drop --uri="$mongo_uri" "/tmp/mongorestore/$backup_folder"
-    if [ $? -ne 0 ]; then
-        echo "Collection drop failed."
-        exit 1
-    fi
+    # Drop all collections before restore
+    echo "Dropping all collections before restore..."
+    drop_all_collections "$mongo_uri"
 
-    # Step 2: Perform the actual restore using writeConcern {w:0}
+    # Perform the actual restore
     echo "Starting actual mongorestore..."
     mongorestore --uri="$mongo_uri" --writeConcern '{w:0}' "/tmp/mongorestore/$backup_folder"
 
