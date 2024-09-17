@@ -4,15 +4,15 @@
 install_mongodb_tools() {
     if ! command -v mongodump &> /dev/null || ! command -v mongorestore &> /dev/null; then
         echo "MongoDB tools not found. Installing..."
-        wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian10-x86_64-100.5.1.tgz
-        tar -zxvf mongodb-database-tools-debian10-x86_64-100.5.1.tgz
+        wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian10-x86_64-100.10.1.tgz
+        tar -zxvf mongodb-database-tools-debian10-x86_64-100.10.1.tgz
 
         # Create the directory if it does not exist
         mkdir -p /home/azureuser/bin/
 
         # Move the tools to the directory
-        mv mongodb-database-tools-debian10-x86_64-100.5.1/bin/* /home/azureuser/bin/
-        rm -rf mongodb-database-tools-debian10-x86_64-100.5.1.tgz mongodb-database-tools-debian10-x86_64-100.5.1/
+        mv mongodb-database-tools-debian10-x86_64-100.10.1/bin/* /home/azureuser/bin/
+        rm -rf mongodb-database-tools-debian10-x86_64-100.10.1.tgz mongodb-database-tools-debian10-x86_64-100.10.1/
         echo "MongoDB tools installed successfully."
     else
         echo "MongoDB tools already installed."
@@ -105,7 +105,7 @@ perform_mongodump() {
     trap "rm -rf /tmp/mongodump; echo 'Local backup directory /tmp/mongodump deleted.'" EXIT
     
     echo "Starting mongodump..."
-    mongodump --uri="$mongo_uri" --out="/tmp/mongodump" --disableParallelValidation
+    mongodump --uri="$mongo_uri" --out="/tmp/mongodump"
 
     if [ $? -eq 0 ]; then
         echo "Backup created successfully at /tmp/mongodump."
