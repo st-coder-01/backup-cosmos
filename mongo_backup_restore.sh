@@ -105,7 +105,7 @@ perform_mongodump() {
     trap "rm -rf /tmp/mongodump; echo 'Local backup directory /tmp/mongodump deleted.'" EXIT
     
     echo "Starting mongodump..."
-    mongodump --uri="$mongo_uri" --out="/tmp/mongodump"
+    mongodump --uri="$mongo_uri" --out="/tmp/mongodump" --disableParallelValidation
 
     if [ $? -eq 0 ]; then
         echo "Backup created successfully at /tmp/mongodump."
