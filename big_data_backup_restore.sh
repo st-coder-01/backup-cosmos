@@ -70,7 +70,6 @@ perform_mongodump() {
     local mongo_uri=$1
     local storage_account=$2
     local server_name=$3
-    local retry_wait_time=10
 
     # Create a timestamped folder name
     local timestamp=$(date -u +"%Y-%m-%d-%H-%M-%S")
@@ -92,34 +91,25 @@ perform_mongodump() {
 
         # Perform mongodump for each collection
         for collection in $(echo "$collections" | jq -r '.[]'); do
-            while true; do
-                echo "Starting mongodump for collection: $collection in database: $db"
+            echo "Starting mongodump for collection: $collection in database: $db"
 
-                # Check if the collection exists before proceeding
-                exists=$(mongosh "$mongo_uri" --quiet --eval "db.getSiblingDB('$db').getCollection('$collection').countDocuments({})" --json)
-                
-                # Extract the document count using jq (handle MongoDB's JSON output)
-                count=$(echo "$exists" | jq -r '."$numberInt" // .n')
-                
-                if [[ "$count" -eq 0 ]]; then
-                    echo "Collection $collection does not exist in database $db. Skipping."
-                    break
-                fi
+            # Check if the collection exists before proceeding
+            exists=$(mongosh "$mongo_uri" --quiet --eval "db.getSiblingDB('$db').getCollection('$collection').countDocuments({})" --json)
+            if [[ "$exists" -eq 0 ]]; then
+                echo "Collection $collection does not exist in database $db. Skipping."
+                continue
+            fi
 
-                # Use quotes to handle spaces in collection names
-                mongodump --uri="$mongo_uri" --db="$db" --collection="$collection" --out="/tmp/mongodump"
+            mongodump --uri="$mongo_uri" --db="$db" --collection="$collection" --out="/tmp/mongodump"
 
-                if [ $? -eq 0 ]; then
-                    echo "Backup for $collection created successfully."
-                    create_container "$storage_account" "$container_name"
-                    upload_to_azure "$storage_account" "$container_name/$backup_folder" "/tmp/mongodump"
-                    rm -rf /tmp/mongodump
-                    break
-                else
-                    echo "mongodump for $collection failed. Retrying in $retry_wait_time seconds..."
-                    sleep "$retry_wait_time"
-                fi
-            done
+            if [ $? -eq 0 ]; then
+                echo "Backup for $collection created successfully."
+                create_container "$storage_account" "$container_name"
+                upload_to_azure "$storage_account" "$container_name/$backup_folder" "/tmp/mongodump"
+                rm -rf /tmp/mongodump
+            else
+                echo "mongodump for $collection failed."
+            fi
         done
     done
 
