@@ -91,35 +91,11 @@ download_from_azure() {
 }
 
 # Function to perform mongodump and upload to Azure Storage
-retry_mongodump() {
-    local retries=5  # Number of retry attempts
-    local wait_time=10  # Initial wait time (seconds)
-    local mongo_uri=$1
-    local output_dir=$2
-
-    for (( i=1; i<=$retries; i++ ))
-    do
-        echo "Attempt $i of $retries: Performing mongodump..."
-        mongodump --uri="$mongo_uri" --out="$output_dir"
-        
-        if [ $? -eq 0 ]; then
-            echo "mongodump succeeded."
-            return 0
-        else
-            echo "mongodump failed. Retrying in $wait_time seconds..."
-            sleep $wait_time
-            wait_time=$((wait_time * 2))  # Exponential backoff
-        fi
-    done
-
-    echo "mongodump failed after $retries attempts."
-    exit 1
-}
-
 perform_mongodump() {
     local mongo_uri=$1
     local storage_account=$2
     local server_name=$3
+    local retry_wait_time=10  # Set the wait time between retries (in seconds)
 
     # Create a timestamped folder name
     local timestamp=$(date -u +"%Y-%m-%d-%H-%M-%S")
@@ -129,18 +105,21 @@ perform_mongodump() {
     # Ensure cleanup is done on exit
     trap "rm -rf /tmp/mongodump; echo 'Local backup directory /tmp/mongodump deleted.'" EXIT
 
-    echo "Starting mongodump with retry logic..."
-    retry_mongodump "$mongo_uri" "/tmp/mongodump"
+    while true; do
+        echo "Starting mongodump..."
+        mongodump --uri="$mongo_uri" --out="/tmp/mongodump"
 
-    if [ $? -eq 0 ]; then
-        echo "Backup created successfully at /tmp/mongodump."
-        create_container "$storage_account" "$container_name" "$server_name"
-        upload_to_azure "$storage_account" "$container_name/$backup_folder" "/tmp/mongodump"
-        delete_old_backups "$storage_account" "$container_name" "$server_name"
-    else
-        echo "mongodump failed."
-        exit 1
-    fi
+        if [ $? -eq 0 ]; then
+            echo "Backup created successfully at /tmp/mongodump."
+            create_container "$storage_account" "$container_name" "$server_name"
+            upload_to_azure "$storage_account" "$container_name/$backup_folder" "/tmp/mongodump"
+            delete_old_backups "$storage_account" "$container_name" "$server_name"
+            break  # Exit the loop if mongodump succeeds
+        else
+            echo "mongodump failed. Retrying in $retry_wait_time seconds..."
+            sleep "$retry_wait_time"
+        fi
+    done
 }
 
 # Function to perform mongorestore from Azure Storage
