@@ -21,15 +21,15 @@ install_mongodb_tools() {
     # Ensure mongo shell is installed
     if ! command -v mongo &> /dev/null; then
         echo "MongoDB shell not found. Installing..."
-        wget https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu1804-4.4.9.tgz
-        tar -zxvf mongodb-linux-x86_64-ubuntu1804-4.4.9.tgz
+        wget https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2004-6.0.5.tgz
+        tar -zxvf mongodb-linux-x86_64-ubuntu2004-6.0.5.tgz
 
         # Create the directory if it does not exist
         mkdir -p /home/azureuser/bin/
 
         # Move the mongo shell to the directory
-        mv mongodb-linux-x86_64-ubuntu1804-4.4.9/bin/mongo /home/azureuser/bin/
-        rm -rf mongodb-linux-x86_64-ubuntu1804-4.4.9.tgz mongodb-linux-x86_64-ubuntu1804-4.4.9/
+        mv mongodb-linux-x86_64-ubuntu2004-6.0.5/bin/mongo /home/azureuser/bin/
+        rm -rf mongodb-linux-x86_64-ubuntu2004-6.0.5.tgz mongodb-linux-x86_64-ubuntu2004-6.0.5/
         echo "MongoDB shell installed successfully."
     else
         echo "MongoDB shell already installed."
