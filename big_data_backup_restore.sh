@@ -97,11 +97,16 @@ perform_mongodump() {
 
                 # Check if the collection exists before proceeding
                 exists=$(mongosh "$mongo_uri" --quiet --eval "db.getSiblingDB('$db').getCollection('$collection').countDocuments({})" --json)
-                if [[ "$exists" -eq 0 ]]; then
+                
+                # Extract the document count using jq (handle MongoDB's JSON output)
+                count=$(echo "$exists" | jq -r '."$numberInt" // .n')
+                
+                if [[ "$count" -eq 0 ]]; then
                     echo "Collection $collection does not exist in database $db. Skipping."
                     break
                 fi
 
+                # Use quotes to handle spaces in collection names
                 mongodump --uri="$mongo_uri" --db="$db" --collection="$collection" --out="/tmp/mongodump"
 
                 if [ $? -eq 0 ]; then
