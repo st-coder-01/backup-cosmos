@@ -4,15 +4,15 @@
 install_mongodb_tools() {
     if ! command -v mongodump &> /dev/null || ! command -v mongorestore &> /dev/null; then
         echo "MongoDB tools not found. Installing..."
-        wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian10-x86_64-100.10.1.tgz
-        tar -zxvf mongodb-database-tools-debian10-x86_64-100.10.1.tgz
+        wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian10-x86_64-100.8.0.tgz
+        tar -zxvf mongodb-database-tools-debian10-x86_64-100.8.0.tgz
 
         # Create the directory if it does not exist
         mkdir -p /home/azureuser/bin/
 
         # Move the tools to the directory
-        mv mongodb-database-tools-debian10-x86_64-100.10.1/bin/* /home/azureuser/bin/
-        rm -rf mongodb-database-tools-debian10-x86_64-100.10.1.tgz mongodb-database-tools-debian10-x86_64-100.10.1/
+        mv mongodb-database-tools-debian10-x86_64-100.8.0/bin/* /home/azureuser/bin/
+        rm -rf mongodb-database-tools-debian10-x86_64-100.8.0.tgz mongodb-database-tools-debian10-x86_64-100.8.0/
         echo "MongoDB tools installed successfully."
     else
         echo "MongoDB tools already installed."
@@ -95,7 +95,6 @@ perform_mongodump() {
     local mongo_uri=$1
     local storage_account=$2
     local server_name=$3
-    local retry_wait_time=10  # Set the wait time between retries (in seconds)
 
     # Create a timestamped folder name
     local timestamp=$(date -u +"%Y-%m-%d-%H-%M-%S")
@@ -104,22 +103,19 @@ perform_mongodump() {
 
     # Ensure cleanup is done on exit
     trap "rm -rf /tmp/mongodump; echo 'Local backup directory /tmp/mongodump deleted.'" EXIT
+    
+    echo "Starting mongodump..."
+    mongodump --uri="$mongo_uri" --out="/tmp/mongodump"
 
-    while true; do
-        echo "Starting mongodump..."
-        mongodump --uri="$mongo_uri" --out="/tmp/mongodump"
-
-        if [ $? -eq 0 ]; then
-            echo "Backup created successfully at /tmp/mongodump."
-            create_container "$storage_account" "$container_name" "$server_name"
-            upload_to_azure "$storage_account" "$container_name/$backup_folder" "/tmp/mongodump"
-            delete_old_backups "$storage_account" "$container_name" "$server_name"
-            break  # Exit the loop if mongodump succeeds
-        else
-            echo "mongodump failed. Retrying in $retry_wait_time seconds..."
-            sleep "$retry_wait_time"
-        fi
-    done
+    if [ $? -eq 0 ]; then
+        echo "Backup created successfully at /tmp/mongodump."
+        create_container "$storage_account" "$container_name" "$server_name"
+        upload_to_azure "$storage_account" "$container_name/$backup_folder" "/tmp/mongodump"
+        delete_old_backups "$storage_account" "$container_name" "$server_name"
+    else
+        echo "mongodump failed."
+        exit 1
+    fi
 }
 
 # Function to perform mongorestore from Azure Storage
