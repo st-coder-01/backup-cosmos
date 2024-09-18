@@ -18,21 +18,21 @@ install_mongodb_tools() {
         echo "MongoDB tools already installed."
     fi
 
-    # Ensure mongo shell is installed
-    if ! command -v mongo &> /dev/null; then
-        echo "MongoDB shell not found. Installing..."
-        wget https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2004-6.0.5.tgz
-        tar -zxvf mongodb-linux-x86_64-ubuntu2004-6.0.5.tgz
+    # Ensure mongosh shell is installed
+    if ! command -v mongosh &> /dev/null; then
+        echo "MongoDB shell (mongosh) not found. Installing..."
+        wget https://downloads.mongodb.com/compass/mongosh-1.8.0-linux-x64.tgz
+        tar -zxvf mongosh-1.8.0-linux-x64.tgz
 
         # Create the directory if it does not exist
         mkdir -p /home/azureuser/bin/
 
-        # Move the mongo shell to the directory
-        mv mongodb-linux-x86_64-ubuntu2004-6.0.5/bin/mongo /home/azureuser/bin/
-        rm -rf mongodb-linux-x86_64-ubuntu2004-6.0.5.tgz mongodb-linux-x86_64-ubuntu2004-6.0.5/
-        echo "MongoDB shell installed successfully."
+        # Move the mongosh shell to the directory
+        mv mongosh-1.8.0-linux-x64/bin/mongosh /home/azureuser/bin/
+        rm -rf mongosh-1.8.0-linux-x64*
+        echo "MongoDB shell (mongosh) installed successfully."
     else
-        echo "MongoDB shell already installed."
+        echo "MongoDB shell (mongosh) already installed."
     fi
 }
 
@@ -74,15 +74,15 @@ perform_mongodump() {
     # Ensure cleanup is done on exit
     trap "rm -rf /tmp/mongodump; echo 'Local backup directory /tmp/mongodump deleted.'" EXIT
 
-    # Get the list of databases
-    databases=$(mongo "$mongo_uri" --quiet --eval "db.adminCommand('listDatabases').databases.map(db => db.name)")
+    # Get the list of databases using mongosh
+    databases=$(mongosh "$mongo_uri" --quiet --eval "db.adminCommand('listDatabases').databases.map(db => db.name)")
 
     # Iterate over each database
     for db in $(echo "$databases" | jq -r '.[]'); do
         echo "Backing up database: $db"
 
-        # Get the list of collections for the current database
-        collections=$(mongo "$mongo_uri" --quiet --eval "db.getSiblingDB('$db').getCollectionNames()")
+        # Get the list of collections for the current database using mongosh
+        collections=$(mongosh "$mongo_uri" --quiet --eval "db.getSiblingDB('$db').getCollectionNames()")
 
         # Perform mongodump for each collection
         for collection in $(echo "$collections" | jq -r '.[]'); do
