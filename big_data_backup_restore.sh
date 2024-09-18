@@ -36,11 +36,24 @@ install_mongodb_tools() {
     fi
 }
 
+# Function to create a container
+create_container() {
+    local storage_account=$1
+    local container_name=$2
+    az storage container create --name "$container_name" --account-name "$storage_account"
+}
+
 # Function to upload a collection backup to Azure Storage
 upload_to_azure() {
     local storage_account=$1
     local container_name=$2
     local source_directory=$3
+
+    # Check if the source directory exists
+    if [ ! -d "$source_directory" ]; then
+        echo "Source directory $source_directory does not exist. Skipping upload."
+        return 1
+    fi
 
     echo "Uploading backup to Azure Storage account: $storage_account, container: $container_name"
     az storage blob upload-batch --destination "$container_name" --source "$source_directory" --account-name "$storage_account"
@@ -48,15 +61,8 @@ upload_to_azure() {
         echo "Backup uploaded successfully."
     else
         echo "Failed to upload backup to Azure Storage Account."
-        exit 1
+        return 1
     fi
-}
-
-# Function to create a container
-create_container() {
-    local storage_account=$1
-    local container_name=$2
-    az storage container create --name "$container_name" --account-name "$storage_account"
 }
 
 # Function to perform mongodump for each collection
@@ -88,6 +94,14 @@ perform_mongodump() {
         for collection in $(echo "$collections" | jq -r '.[]'); do
             while true; do
                 echo "Starting mongodump for collection: $collection in database: $db"
+
+                # Check if the collection exists before proceeding
+                exists=$(mongosh "$mongo_uri" --quiet --eval "db.getSiblingDB('$db').getCollection('$collection').countDocuments({})" --json)
+                if [[ "$exists" -eq 0 ]]; then
+                    echo "Collection $collection does not exist in database $db. Skipping."
+                    break
+                fi
+
                 mongodump --uri="$mongo_uri" --db="$db" --collection="$collection" --out="/tmp/mongodump"
 
                 if [ $? -eq 0 ]; then
