@@ -91,6 +91,31 @@ download_from_azure() {
 }
 
 # Function to perform mongodump and upload to Azure Storage
+retry_mongodump() {
+    local retries=5  # Number of retry attempts
+    local wait_time=10  # Initial wait time (seconds)
+    local mongo_uri=$1
+    local output_dir=$2
+
+    for (( i=1; i<=$retries; i++ ))
+    do
+        echo "Attempt $i of $retries: Performing mongodump..."
+        mongodump --uri="$mongo_uri" --out="$output_dir"
+        
+        if [ $? -eq 0 ]; then
+            echo "mongodump succeeded."
+            return 0
+        else
+            echo "mongodump failed. Retrying in $wait_time seconds..."
+            sleep $wait_time
+            wait_time=$((wait_time * 2))  # Exponential backoff
+        fi
+    done
+
+    echo "mongodump failed after $retries attempts."
+    exit 1
+}
+
 perform_mongodump() {
     local mongo_uri=$1
     local storage_account=$2
@@ -103,9 +128,9 @@ perform_mongodump() {
 
     # Ensure cleanup is done on exit
     trap "rm -rf /tmp/mongodump; echo 'Local backup directory /tmp/mongodump deleted.'" EXIT
-    
-    echo "Starting mongodump..."
-    mongodump --uri="$mongo_uri" --out="/tmp/mongodump"
+
+    echo "Starting mongodump with retry logic..."
+    retry_mongodump "$mongo_uri" "/tmp/mongodump"
 
     if [ $? -eq 0 ]; then
         echo "Backup created successfully at /tmp/mongodump."
