@@ -74,15 +74,15 @@ perform_mongodump() {
     # Ensure cleanup is done on exit
     trap "rm -rf /tmp/mongodump; echo 'Local backup directory /tmp/mongodump deleted.'" EXIT
 
-    # Get the list of databases using mongosh
-    databases=$(mongosh "$mongo_uri" --quiet --eval "db.adminCommand('listDatabases').databases.map(db => db.name)")
+    # Get the list of databases using mongosh with JSON output
+    databases=$(mongosh "$mongo_uri" --quiet --eval "JSON.stringify(db.adminCommand('listDatabases').databases)" --json)
 
     # Iterate over each database
-    for db in $(echo "$databases" | jq -r '.[]'); do
+    for db in $(echo "$databases" | jq -r '.[] | .name'); do
         echo "Backing up database: $db"
 
-        # Get the list of collections for the current database using mongosh
-        collections=$(mongosh "$mongo_uri" --quiet --eval "db.getSiblingDB('$db').getCollectionNames()")
+        # Get the list of collections for the current database using mongosh with JSON output
+        collections=$(mongosh "$mongo_uri" --quiet --eval "JSON.stringify(db.getSiblingDB('$db').getCollectionNames())" --json)
 
         # Perform mongodump for each collection
         for collection in $(echo "$collections" | jq -r '.[]'); do
