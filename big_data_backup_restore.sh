@@ -126,12 +126,61 @@ perform_mongodump() {
     echo "All collections have been backed up."
 }
 
+# Function to restore a collection from Azure Storage
+perform_mongorestore() {
+    local mongo_uri=$1
+    local storage_account=$2
+    local server_name=$3
+    local timestamp=$4
+
+    # Create the folder structure
+    local container_name="mongodbbackup"
+    local backup_folder="${server_name}/${server_name}_${timestamp}"
+
+    # Ensure cleanup is done on exit
+    trap "rm -rf /tmp/mongorestore; echo 'Local restore directory /tmp/mongorestore deleted.'" EXIT
+
+    # Download the backup from Azure Storage
+    echo "Downloading backup from Azure Storage..."
+    mkdir -p "$destination_directory"
+    az storage blob download-batch --source "$container_name/$backup_folder" --destination "/tmp/mongorestore" --account-name "$storage_account"
+    
+    if [ $? -ne 0 ]; then
+        echo "Failed to download backup from Azure Storage. Exiting."
+        exit 1
+    fi
+
+    # List the databases and collections from the downloaded backup
+    databases=$(ls /tmp/mongorestore)
+
+    # Iterate over each database
+    for db in $databases; do
+        echo "Restoring database: $db"
+        
+        collections=$(ls /tmp/mongorestore/"$db")
+        
+        # Restore each collection
+        for collection in $collections; do
+            echo "Restoring collection: $collection in database: $db"
+            mongorestore --uri="$mongo_uri" --db="$db" --collection="$collection" /tmp/mongorestore/"$db"/"$collection"
+
+            if [ $? -eq 0 ]; then
+                echo "Restored collection $collection successfully."
+            else
+                echo "mongorestore for $collection failed."
+            fi
+        done
+    done
+
+    echo "All collections have been restored."
+}
+
 # Main function
 main() {
     install_mongodb_tools
 
     if [ "$#" -lt 4 ]; then
-        echo "Usage: $0 mongodump <MongoDB_URI> <Storage_Account_Name> <Server_Name>"
+        echo "Usage: $0 <action> <MongoDB_URI> <Storage_Account_Name> <Server_Name> [Timestamp]"
         exit 1
     fi
 
@@ -145,8 +194,15 @@ main() {
             fi
             perform_mongodump "$2" "$3" "$4"
             ;;
+        mongorestore)
+            if [ "$#" -ne 5 ]; then
+                echo "Usage: $0 mongorestore <MongoDB_URI> <Storage_Account_Name> <Server_Name> <Timestamp>"
+                exit 1
+            fi
+            perform_mongorestore "$2" "$3" "$4" "$5"
+            ;;
         *)
-            echo "Invalid action specified. Use 'mongodump'."
+            echo "Invalid action specified. Use 'mongodump' or 'mongorestore'."
             exit 1
             ;;
     esac
