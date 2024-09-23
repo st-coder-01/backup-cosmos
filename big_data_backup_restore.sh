@@ -132,6 +132,7 @@ perform_mongorestore() {
     local storage_account=$2
     local server_name=$3
     local timestamp=$4
+    local destination_directory="/tmp/mongorestore"
 
     # Create the folder structure
     local container_name="mongodbbackup"
@@ -143,7 +144,7 @@ perform_mongorestore() {
     # Download the backup from Azure Storage
     echo "Downloading backup from Azure Storage..."
     mkdir -p "$destination_directory"
-    az storage blob download-batch --source "$container_name/$backup_folder" --destination "/tmp/mongorestore" --account-name "$storage_account"
+    az storage blob download-batch --destination "$destination_directory" --source "$container_path" --pattern "$backup_folder/*" --account-name "$storage_account"
     
     if [ $? -ne 0 ]; then
         echo "Failed to download backup from Azure Storage. Exiting."
